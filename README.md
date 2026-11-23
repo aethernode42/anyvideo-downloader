@@ -16,7 +16,7 @@ Paste a link to a video, pick a quality, and download it as MP4, MP3 or M4A. It 
 - Playlists show a list of videos to pick from
 - Shareable links: `/?url=<video link>` opens straight to that video
 - Dark and light themes, works on phones
-- Safe to host publicly: blocks links to private networks, rate-limits requests, and caps file size and simultaneous downloads
+- Hardened for public hosting: all download traffic goes through a built-in proxy that refuses private network addresses (even after redirects), plus rate limits, a file-size cap, a download time limit, and caps on simultaneous lookups and downloads
 
 ## Run it on your computer
 
@@ -60,12 +60,15 @@ All settings are optional environment variables:
 | `PORT` | `8765` | Port to listen on. When set, the app listens on all interfaces. |
 | `HOST` | `127.0.0.1` | Interface to listen on. |
 | `MAX_CONCURRENT_JOBS` | `3` | Downloads that can run at the same time. |
-| `MAX_FILESIZE_MB` | `2048` | Largest file allowed per download. `0` means no limit. |
+| `MAX_CONCURRENT_INFO` | `4` | Link lookups that can run at the same time. |
+| `MAX_FILESIZE_MB` | `2048` | Largest file allowed per download, enforced while downloading. `0` means no limit. |
+| `JOB_TIMEOUT_SECONDS` | `1800` | A download that runs longer than this is stopped. |
 | `RATE_LIMIT_PER_MIN` | `30` | API requests allowed per visitor per minute. `0` turns it off. |
+| `CLIENT_IP_HEADER` | unset | Header holding the real visitor IP when you run behind a proxy that sets it (for example `cf-connecting-ip` behind Cloudflare). Leave it unset otherwise, because visitors could fake it. |
 | `JOB_TTL_SECONDS` | `3600` | How long finished files are kept before they're deleted. |
 | `DOWNLOAD_DIR` | `.downloads` | Where files are stored while waiting to be saved. |
 | `COOKIES_BROWSER` | unset | Use your browser's cookies (for example `firefox`) for sites that need a login. |
-| `ALLOW_PRIVATE_URLS` | unset | Set to `1` to allow links to local network addresses (only for private use). |
+| `ALLOW_PRIVATE_URLS` | unset | Set to `1` to allow links to local network addresses and turn off the built-in proxy. Only for private use, never on a public server. |
 
 ### Sites that need a login
 
@@ -87,6 +90,7 @@ The backend is a small [FastAPI](https://fastapi.tiangolo.com/) app ([`app.py`](
 
 - **"Could not reach this website"**: your network or internet provider may block that site, or the address is wrong.
 - **A site that used to work stopped working**: sites change often. Update yt-dlp with `uv lock --upgrade-package yt-dlp && uv sync`.
+- **Live streams**: they never end, so they can't be downloaded. Recordings of past streams work.
 - **"DRM-protected"**: streaming services such as Netflix and Disney+, and some Vimeo videos, use DRM. They can't be downloaded, by design.
 - **YouTube fails on a hosted server**: see the note under [Deploy it](#deploy-it).
 

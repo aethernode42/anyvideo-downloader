@@ -215,10 +215,17 @@ function fail(el, msg) { el.classList.add("error"); el.querySelector(".st").text
 
 async function poll(id, el) {
   const st = el.querySelector(".st"), sp = el.querySelector(".sp"), bar = el.querySelector(".prog"), fill = bar.querySelector("i");
+  let misses = 0;
   for (;;) {
     await new Promise(r => setTimeout(r, 700));
-    let r, j; try { r = await fetch("/api/jobs/" + id); j = await r.json(); } catch { continue; }
-    if (r.status === 404) return fail(el, "This download expired or the server restarted. Please try again.");
+    let r, j;
+    try { r = await fetch("/api/jobs/" + id); j = r.ok || r.status === 404 ? await r.json() : null; } catch { j = null; }
+    if (r && r.status === 404) return fail(el, "This download expired or the server restarted. Please try again.");
+    if (!j) {  // network blip or server error: retry for ~20 seconds, then give up
+      if (++misses > 30) return fail(el, "Lost contact with the server. Please try again.");
+      continue;
+    }
+    misses = 0;
     if (j.status === "downloading") {
       if (j.progress != null) { bar.classList.remove("ind"); fill.style.width = j.progress.toFixed(1) + "%"; }
       st.textContent = `Downloading ${j.progress != null ? j.progress.toFixed(0) + "%" : fmtSize(j.downloaded)}`;

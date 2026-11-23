@@ -125,3 +125,99 @@ def test_busy_server_returns_429(monkeypatch):
     monkeypatch.setattr(appmod, "MAX_CONCURRENT_JOBS", 0)
     r = client.post("/api/jobs", json={"url": "https://example.com"})
     assert r.status_code == 429
+
+
+# ---------- review fixes ----------
+
+def _proxy_request(raw: bytes) -> bytes:
+    import socket
+    from urllib.parse import urlsplit
+
+    u = urlsplit(appmod.BASE_OPTS["proxy"])
+    with socket.create_connection((u.hostname, u.port), timeout=10) as s:
+        s.sendall(raw)
+        return s.recv(4096)
+
+
+@pytest.mark.parametrize("target", ["127.0.0.1:80", "localhost:8765", "169.254.169.254:80", "10.0.0.1:443", "[::1]:80"])
+def test_proxy_refuses_private_https_tunnels(target):
+    reply = _proxy_request(f"CONNECT {target} HTTP/1.1\r\nHost: {target}\r\n\r\n".encode())
+    assert reply.startswith(b"HTTP/1.1 403")
+
+
+@pytest.mark.parametrize("url", ["http://127.0.0.1:8765/healthz", "http://192.168.1.1/", "http://169.254.169.254/latest/"])
+def test_proxy_refuses_private_plain_http(url):
+    reply = _proxy_request(f"GET {url} HTTP/1.1\r\nHost: x\r\n\r\n".encode())
+    assert reply.startswith(b"HTTP/1.1 403")
+
+
+def test_proxy_refuses_mixed_dns_answers(monkeypatch):
+    # A hostname that returns one public and one private address is refused (DNS rebinding trick).
+    monkeypatch.setattr(appmod, "_real_getaddrinfo", lambda *a, **k: [
+        (2, 1, 6, "", ("93.184.216.34", 443)), (2, 1, 6, "", ("127.0.0.1", 443))])
+    with pytest.raises(PermissionError):
+        appmod.open_public_connection("rebind.example", 443)
+
+
+def test_all_ytdlp_traffic_uses_the_proxy():
+    assert appmod.BASE_OPTS["proxy"].startswith("http://127.0.0.1:")
+
+
+def test_blocked_error_is_friendly():
+    assert "private" in appmod._clean_err(Exception("HTTP Error 403: Blocked Private Address"))
+    assert "private" in appmod._clean_err(Exception("CONNECT tunnel failed, response 403"))
+
+
+@pytest.mark.parametrize("fid", ["all", "mergeall", "best", "BV", "ba", "x" * 81])
+def test_multi_format_keywords_rejected(fid):
+    with pytest.raises(HTTPException):
+        appmod.format_selector(appmod.JobRequest(url="x", mode="format", format_id=fid))
+
+
+def test_unsafe_protocols_refused():
+    import yt_dlp
+
+    appmod.check_protocols({"protocol": "https"})
+    appmod.check_protocols({"requested_formats": [{"protocol": "m3u8_native"}, {"protocol": "https"}]})
+    for proto in ("rtmp", "rtsp", "f4m", "ism", None):
+        with pytest.raises(yt_dlp.utils.DownloadError):
+            appmod.check_protocols({"requested_formats": [{"protocol": "https"}, {"protocol": proto}]})
+
+
+def test_forwarded_for_header_is_not_trusted(monkeypatch):
+    monkeypatch.setattr(appmod, "RATE_LIMIT_PER_MIN", 2)
+    appmod._HITS.clear()
+    codes = [client.post("/api/info", json={"url": "http://127.0.0.1/"},
+                         headers={"X-Forwarded-For": f"1.2.3.{i}"}).status_code for i in range(3)]
+    assert codes[-1] == 429
+    appmod._HITS.clear()
+
+
+def test_configured_client_ip_header(monkeypatch):
+    monkeypatch.setattr(appmod, "CLIENT_IP_HEADER", "cf-connecting-ip")
+    req = type("R", (), {"headers": {"cf-connecting-ip": "8.8.8.8"}, "client": None})()
+    assert appmod.client_ip(req) == "8.8.8.8"
+
+
+def test_rate_table_is_pruned(monkeypatch):
+    appmod._HITS.clear()
+    for i in range(10_001):
+        appmod._HITS[f"ip{i}"]  # stale empty entries
+    req = type("R", (), {"headers": {}, "client": type("C", (), {"host": "9.9.9.9"})()})()
+    appmod.rate_limit(req)
+    assert len(appmod._HITS) == 1
+    appmod._HITS.clear()
+
+
+def test_job_status_is_a_copy():
+    appmod.JOBS["t1"] = {"id": "t1", "status": "done", "file": "/secret/path", "progress": 100}
+    try:
+        r = client.get("/api/jobs/t1").json()
+        assert r["status"] == "done" and "file" not in r
+    finally:
+        appmod.JOBS.pop("t1")
+
+
+def test_live_streams_and_ffmpeg_network_disabled():
+    assert appmod.BASE_OPTS["external_downloader"] == {"default": "native"}
+    assert appmod.BASE_OPTS["playlistend"] == 200

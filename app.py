@@ -12,6 +12,7 @@ import re
 import secrets
 import shutil
 import socket
+import socketserver
 import threading
 import time
 from collections import defaultdict, deque
@@ -41,6 +42,9 @@ JOB_TTL = _env_int("JOB_TTL_SECONDS", 3600)              # delete finished files
 MAX_CONCURRENT_JOBS = _env_int("MAX_CONCURRENT_JOBS", 3)  # downloads running at once
 MAX_FILESIZE_MB = _env_int("MAX_FILESIZE_MB", 2048)       # per download, 0 = unlimited
 RATE_LIMIT_PER_MIN = _env_int("RATE_LIMIT_PER_MIN", 30)   # API calls per IP per minute, 0 = off
+MAX_CONCURRENT_INFO = _env_int("MAX_CONCURRENT_INFO", 4)  # link lookups running at once
+JOB_TIMEOUT = _env_int("JOB_TIMEOUT_SECONDS", 1800)       # give up on a download after this
+CLIENT_IP_HEADER = os.environ.get("CLIENT_IP_HEADER", "").lower()  # set only behind a proxy that overwrites it
 ALLOW_PRIVATE_URLS = os.environ.get("ALLOW_PRIVATE_URLS") == "1"
 
 DL_DIR.mkdir(parents=True, exist_ok=True)
@@ -49,11 +53,17 @@ BASE_OPTS: dict[str, Any] = {
     "quiet": True,
     "no_warnings": True,
     "noplaylist": True,
+    "playlistend": 200,
     "socket_timeout": 20,
     "retries": 3,
     # YouTube needs a JavaScript runtime for signature solving (Deno or Node).
     "js_runtimes": {"deno": {}, "node": {}},
+    # Download HLS/DASH with yt-dlp's own code, never ffmpeg, so every
+    # network connection goes through the private-address proxy below.
+    "external_downloader": {"default": "native"},
 }
+# Protocols yt-dlp can fetch natively in Python (ffmpeg is only used locally, to merge/convert).
+SAFE_PROTOCOLS = {"http", "https", "m3u8", "m3u8_native", "http_dash_segments", "http_dash_segments_generator"}
 if MAX_FILESIZE_MB > 0:
     BASE_OPTS["max_filesize"] = MAX_FILESIZE_MB * 1024 * 1024
 
@@ -67,10 +77,112 @@ elif os.environ.get("COOKIES_BROWSER"):
 app = FastAPI(title="AnyVideo Downloader")
 
 
+# ---------- private-network guard (SSRF protection) ----------
+# Checking only the pasted link is not enough: pages can redirect, embed or
+# list stream segments on other hosts, and DNS answers can change. So all of
+# yt-dlp's traffic (including curl_cffi browser impersonation) is sent through
+# a tiny forward proxy running inside this process. The proxy resolves every
+# hostname itself and refuses to connect to private, loopback or link-local
+# addresses, so redirects and DNS rebinding can't reach internal services.
+
+_real_getaddrinfo = socket.getaddrinfo
+BLOCKED_MSG = "Blocked Private Address"
+
+
+def _is_public(addr: str) -> bool:
+    return ipaddress.ip_address(addr.split("%")[0]).is_global
+
+
+def open_public_connection(host: str, port: int) -> socket.socket:
+    """Connect to host:port only if it resolves to a public address (connects to that exact IP)."""
+    infos = _real_getaddrinfo(host, port, type=socket.SOCK_STREAM)
+    public = [i for i in infos if _is_public(i[4][0])]
+    if not public or len(public) != len(infos):
+        raise PermissionError(BLOCKED_MSG)
+    family, socktype, proto, _, addr = public[0]
+    s = socket.socket(family, socktype, proto)
+    s.settimeout(20)
+    s.connect(addr)
+    return s
+
+
+def _pipe(a: socket.socket, b: socket.socket) -> None:
+    import select
+
+    a.settimeout(None)
+    b.settimeout(None)
+    while True:
+        ready, _, broken = select.select([a, b], [], [a, b], 300)
+        if broken or not ready:
+            return
+        for s in ready:
+            data = s.recv(65536)
+            if not data:
+                return
+            (b if s is a else a).sendall(data)
+
+
+class _EgressHandler(socketserver.BaseRequestHandler):
+    def handle(self) -> None:
+        client = self.request
+        client.settimeout(30)
+        upstream = None
+        try:
+            head = b""
+            while b"\r\n\r\n" not in head:
+                chunk = client.recv(65536)
+                if not chunk or len(head) > 65536:
+                    return
+                head += chunk
+            header_block, _, body = head.partition(b"\r\n\r\n")
+            request_line, *headers = header_block.split(b"\r\n")
+            method, target, version = request_line.decode("latin-1").split(" ", 2)
+            if method.upper() == "CONNECT":  # HTTPS tunnel
+                host, _, port = target.rpartition(":")
+                upstream = open_public_connection(host.strip("[]"), int(port))
+                client.sendall(b"HTTP/1.1 200 Connection established\r\n\r\n")
+                if body:
+                    upstream.sendall(body)
+            else:  # plain HTTP: rewrite absolute URL to a path and force one request per connection
+                u = urlsplit(target)
+                if u.scheme != "http" or not u.hostname:
+                    raise PermissionError(BLOCKED_MSG)
+                upstream = open_public_connection(u.hostname, u.port or 80)
+                path = (u.path or "/") + (f"?{u.query}" if u.query else "")
+                keep = [h for h in headers if not h.lower().startswith(
+                    (b"proxy-connection:", b"connection:", b"keep-alive:", b"proxy-authorization:"))]
+                upstream.sendall(f"{method} {path} {version}\r\n".encode("latin-1")
+                                 + b"\r\n".join(keep + [b"Connection: close"]) + b"\r\n\r\n" + body)
+            _pipe(client, upstream)
+        except PermissionError:
+            client.sendall(f"HTTP/1.1 403 {BLOCKED_MSG}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".encode())
+        except (OSError, ValueError):
+            try:
+                client.sendall(b"HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+            except OSError:
+                pass
+        finally:
+            if upstream:
+                upstream.close()
+
+
+def start_egress_proxy() -> str:
+    server = socketserver.ThreadingTCPServer(("127.0.0.1", 0), _EgressHandler)
+    server.daemon_threads = True
+    threading.Thread(target=server.serve_forever, daemon=True, name="egress-proxy").start()
+    return f"http://127.0.0.1:{server.server_address[1]}"
+
+
+if not ALLOW_PRIVATE_URLS:
+    BASE_OPTS["proxy"] = start_egress_proxy()
+
+
 # ---------- helpers ----------
 
 def _clean_err(e: Exception) -> str:
     msg = re.sub(r"\x1b\[[0-9;]*m", "", str(e)).replace("ERROR: ", "")
+    if BLOCKED_MSG.lower() in msg.lower() or "tunnel failed, response 403" in msg.lower():
+        return "This link leads to a local or private network address, which is not allowed."
     if "DRM protected" in msg:
         return "This video is DRM-protected by the site, so it can't be downloaded."
     if "File is larger than max-filesize" in msg or "max_filesize" in msg:
@@ -98,7 +210,7 @@ def normalize_url(raw: str) -> str:
         raise HTTPException(400, "Only http:// and https:// links are supported.")
     if not ALLOW_PRIVATE_URLS:
         try:
-            infos = socket.getaddrinfo(parts.hostname, None)
+            infos = _real_getaddrinfo(parts.hostname, None)
         except socket.gaierror:
             raise HTTPException(400, f"Could not reach '{parts.hostname}'. The address may be wrong, "
                                      "or your network/internet provider may be blocking this site.")
@@ -113,12 +225,23 @@ _HITS: dict[str, deque] = defaultdict(deque)
 _HITS_LOCK = threading.Lock()
 
 
+def client_ip(request: Request) -> str:
+    # X-Forwarded-For is never trusted blindly (clients can fake it). Behind a
+    # proxy that overwrites a header with the real visitor IP, name it in CLIENT_IP_HEADER.
+    if CLIENT_IP_HEADER and request.headers.get(CLIENT_IP_HEADER):
+        return request.headers[CLIENT_IP_HEADER].split(",")[-1].strip()
+    return request.client.host if request.client else "?"
+
+
 def rate_limit(request: Request) -> None:
     if RATE_LIMIT_PER_MIN <= 0:
         return
-    ip = request.client.host if request.client else "?"  # uvicorn applies proxy headers
+    ip = client_ip(request)
     now = time.time()
     with _HITS_LOCK:
+        if len(_HITS) > 10_000:  # drop visitors with no recent requests
+            for k in [k for k, q in _HITS.items() if not q or now - q[-1] > 60]:
+                del _HITS[k]
         q = _HITS[ip]
         while q and now - q[0] > 60:
             q.popleft()
@@ -186,14 +309,26 @@ def summarize(info: dict) -> dict:
 
 
 @app.get("/healthz")
-def healthz() -> dict:
+async def healthz() -> dict:  # async: answers even when worker threads are busy
     return {"ok": True, "yt_dlp": yt_dlp.version.__version__}
+
+
+INFO_SLOTS = threading.BoundedSemaphore(max(MAX_CONCURRENT_INFO, 1))
 
 
 @app.post("/api/info")
 def get_info(req: InfoRequest, request: Request) -> dict:
     rate_limit(request)
     url = normalize_url(req.url)
+    if not INFO_SLOTS.acquire(timeout=15):
+        raise HTTPException(429, "The server is busy. Please try again in a moment.")
+    try:
+        return _get_info(url)
+    finally:
+        INFO_SLOTS.release()
+
+
+def _get_info(url: str) -> dict:
     opts = {**BASE_OPTS, "extract_flat": "in_playlist"}
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
@@ -231,6 +366,14 @@ class JobRequest(BaseModel):
 
 JOBS: dict[str, dict] = {}
 LOCK = threading.Lock()
+# yt-dlp words that select many formats at once; never accept them as a single format id.
+FORMAT_KEYWORDS = {"all", "mergeall", "best", "worst", "b", "w", "bv", "ba", "wv", "wa",
+                   "bestvideo", "bestaudio", "worstvideo", "worstaudio"}
+
+
+def _set(job: dict, **fields: Any) -> None:
+    with LOCK:
+        job.update(fields)
 
 
 def format_selector(req: JobRequest) -> tuple[str, dict]:
@@ -245,58 +388,82 @@ def format_selector(req: JobRequest) -> tuple[str, dict]:
         return (f"bv*[height<={h}][vcodec^=avc1]+ba[ext=m4a]/bv*[height<={h}]+ba/"
                 f"b[height<={h}]/bv*+ba/b"), {"merge_output_format": "mp4"}
     if req.mode == "format" and req.format_id:
-        if not re.fullmatch(r"[\w.\-]+", req.format_id):
+        if not re.fullmatch(r"[\w.\-]{1,80}", req.format_id) or req.format_id.lower() in FORMAT_KEYWORDS:
             raise HTTPException(400, "Invalid format id.")
         fid = req.format_id
         return f"{fid}+ba/{fid}", {"merge_output_format": "mp4"}
     return "bv*[vcodec^=avc1]+ba[ext=m4a]/b[vcodec~='^(avc|h264)']/bv*+ba/b", {"merge_output_format": "mp4"}
 
 
+def check_protocols(info: dict) -> None:
+    """Refuse formats that only ffmpeg/rtmpdump could fetch (they bypass the network guard)."""
+    for f in info.get("requested_formats") or [info]:
+        if f.get("protocol") not in SAFE_PROTOCOLS:
+            raise yt_dlp.utils.DownloadError(f"This stream type ({f.get('protocol')}) is not supported.")
+
+
 def _run_job(job_id: str, url: str, fmt: str, extra: dict) -> None:
     job = JOBS[job_id]
     out_dir = DL_DIR / job_id
     out_dir.mkdir(parents=True, exist_ok=True)
+    started = time.time()
+    cap = MAX_FILESIZE_MB * 1024 * 1024
+    part_bytes: dict[str, int] = {}
 
     def hook(d: dict) -> None:
         if d["status"] == "downloading":
             total = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
             done = d.get("downloaded_bytes") or 0
-            job.update(status="downloading", downloaded=done, total=total,
-                       speed=d.get("speed"), eta=d.get("eta"),
-                       progress=(done / total * 100) if total else None)
+            part_bytes[d.get("filename") or ""] = done
+            # max_filesize only works when the size is known in advance; enforce it while streaming too.
+            if cap and sum(part_bytes.values()) > cap:
+                raise yt_dlp.utils.DownloadCancelled(
+                    f"This file is larger than the {MAX_FILESIZE_MB} MB limit of this server.")
+            if time.time() - started > JOB_TIMEOUT:
+                raise yt_dlp.utils.DownloadCancelled("The download took too long and was stopped.")
+            _set(job, status="downloading", downloaded=done, total=total,
+                 speed=d.get("speed"), eta=d.get("eta"),
+                 progress=(done / total * 100) if total else None)
         elif d["status"] == "finished":
-            job.update(status="processing", progress=100)
+            _set(job, status="processing", progress=100)
 
     def pp_hook(d: dict) -> None:
         if d["status"] == "started":
-            job.update(status="processing")
+            _set(job, status="processing")
 
     opts = {**BASE_OPTS, **extra, "format": fmt,
             "outtmpl": str(out_dir / "%(title).150B [%(id)s].%(ext)s"),
             "windowsfilenames": True,
+            # Live streams never end, so they could fill the disk.
+            "match_filter": yt_dlp.utils.match_filter_func("!is_live"),
             "progress_hooks": [hook], "postprocessor_hooks": [pp_hook],
             "concurrent_fragment_downloads": 4}
     try:
         for attempt in range(2):  # YouTube sometimes 403s a fresh URL; one retry fixes it
             try:
                 with yt_dlp.YoutubeDL(opts) as ydl:
-                    ydl.extract_info(url, download=True)
+                    info = ydl.extract_info(url, download=False)
+                    if info.get("is_live"):
+                        raise yt_dlp.utils.DownloadError("Live streams can't be downloaded.")
+                    check_protocols(info)
+                    ydl.process_ie_result(info, download=True)
                 break
             except yt_dlp.utils.DownloadError as e:
                 if attempt or "403" not in str(e):
                     raise
-                job.update(status="queued", progress=0)
+                _set(job, status="queued", progress=0)
+                part_bytes.clear()
         files = [p for p in out_dir.iterdir() if p.is_file() and not p.name.endswith((".part", ".ytdl"))]
         if not files:
             # yt-dlp skips (without raising) files over max_filesize.
             raise RuntimeError(f"No file was produced. It may be larger than the {MAX_FILESIZE_MB} MB limit.")
         f = max(files, key=lambda p: p.stat().st_size)
-        job.update(status="done", file=str(f), filename=f.name, size=f.stat().st_size, progress=100)
+        _set(job, status="done", file=str(f), filename=f.name, size=f.stat().st_size, progress=100)
     except Exception as e:  # noqa: BLE001
-        job.update(status="error", error=_clean_err(e))
+        _set(job, status="error", error=_clean_err(e))
         shutil.rmtree(out_dir, ignore_errors=True)
     finally:
-        job["finished_at"] = time.time()
+        _set(job, finished_at=time.time())
 
 
 def cleanup() -> None:
@@ -330,16 +497,18 @@ def create_job(req: JobRequest, request: Request) -> dict:
 
 @app.get("/api/jobs/{job_id}")
 def job_status(job_id: str) -> dict:
-    job = JOBS.get(job_id)
-    if not job:
-        raise HTTPException(404, "Job not found")
-    return {k: v for k, v in job.items() if k != "file"}
+    with LOCK:
+        job = JOBS.get(job_id)
+        if not job:
+            raise HTTPException(404, "Job not found")
+        return {k: v for k, v in job.items() if k != "file"}
 
 
 @app.get("/api/jobs/{job_id}/file")
 def job_file(job_id: str) -> FileResponse:
-    job = JOBS.get(job_id)
-    if not job or job.get("status") != "done" or not Path(job["file"]).exists():
+    with LOCK:
+        job = dict(JOBS.get(job_id) or {})
+    if job.get("status") != "done" or not Path(job["file"]).exists():
         raise HTTPException(404, "File not ready or already deleted")
     return FileResponse(job["file"], filename=job["filename"], media_type="application/octet-stream")
 
@@ -352,4 +521,5 @@ if __name__ == "__main__":
     # Hosting platforms (Render, Railway, Fly...) set PORT; then listen on all interfaces.
     port = _env_int("PORT", 8765)
     host = os.environ.get("HOST", "0.0.0.0" if "PORT" in os.environ else "127.0.0.1")
-    uvicorn.run(app, host=host, port=port, proxy_headers=True, forwarded_allow_ips="*")
+    # proxy_headers off: a client-supplied X-Forwarded-For must not change the IP used for rate limiting.
+    uvicorn.run(app, host=host, port=port, proxy_headers=False)
