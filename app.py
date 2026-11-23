@@ -106,20 +106,37 @@ def open_public_connection(host: str, port: int) -> socket.socket:
     return s
 
 
-def _pipe(a: socket.socket, b: socket.socket) -> None:
+def _pipe(client: socket.socket, upstream: socket.socket, one_request: bool = False) -> None:
+    """Relay bytes both ways. With one_request=True (plain HTTP), anything more the client
+    sends ends the connection, so a reused connection can never reach a different host."""
     import select
 
-    a.settimeout(None)
-    b.settimeout(None)
+    client.settimeout(None)
+    upstream.settimeout(None)
     while True:
-        ready, _, broken = select.select([a, b], [], [a, b], 300)
+        ready, _, broken = select.select([client, upstream], [], [client, upstream], 300)
         if broken or not ready:
             return
         for s in ready:
             data = s.recv(65536)
-            if not data:
+            if not data or (one_request and s is client):
                 return
-            (b if s is a else a).sendall(data)
+            (upstream if s is client else client).sendall(data)
+
+
+def _read_head(sock: socket.socket, first: bytes = b"") -> tuple[bytes, bytes]:
+    """Read until the end of an HTTP header block; return (head, rest)."""
+    buf = first
+    while b"\r\n\r\n" not in buf:
+        chunk = sock.recv(65536)
+        if not chunk or len(buf) > 65536:
+            raise ValueError("bad HTTP head")
+        buf += chunk
+    head, _, rest = buf.partition(b"\r\n\r\n")
+    return head, rest
+
+
+_HOP_HEADERS = (b"proxy-connection:", b"connection:", b"keep-alive:", b"proxy-authorization:")
 
 
 class _EgressHandler(socketserver.BaseRequestHandler):
@@ -128,13 +145,7 @@ class _EgressHandler(socketserver.BaseRequestHandler):
         client.settimeout(30)
         upstream = None
         try:
-            head = b""
-            while b"\r\n\r\n" not in head:
-                chunk = client.recv(65536)
-                if not chunk or len(head) > 65536:
-                    return
-                head += chunk
-            header_block, _, body = head.partition(b"\r\n\r\n")
+            header_block, body = _read_head(client)
             request_line, *headers = header_block.split(b"\r\n")
             method, target, version = request_line.decode("latin-1").split(" ", 2)
             if method.upper() == "CONNECT":  # HTTPS tunnel
@@ -143,17 +154,31 @@ class _EgressHandler(socketserver.BaseRequestHandler):
                 client.sendall(b"HTTP/1.1 200 Connection established\r\n\r\n")
                 if body:
                     upstream.sendall(body)
-            else:  # plain HTTP: rewrite absolute URL to a path and force one request per connection
+                _pipe(client, upstream)
+            else:  # plain HTTP: exactly one request per connection, to the host it names
                 u = urlsplit(target)
                 if u.scheme != "http" or not u.hostname:
                     raise PermissionError(BLOCKED_MSG)
+                if any(h.lower().startswith(b"transfer-encoding:") for h in headers):
+                    raise ValueError("chunked request bodies are not supported")
+                length = next((int(h.split(b":", 1)[1]) for h in headers
+                               if h.lower().startswith(b"content-length:")), 0)
+                while len(body) < length:  # the whole body belongs to this one request
+                    chunk = client.recv(65536)
+                    if not chunk:
+                        raise ValueError("incomplete request body")
+                    body += chunk
                 upstream = open_public_connection(u.hostname, u.port or 80)
                 path = (u.path or "/") + (f"?{u.query}" if u.query else "")
-                keep = [h for h in headers if not h.lower().startswith(
-                    (b"proxy-connection:", b"connection:", b"keep-alive:", b"proxy-authorization:"))]
+                keep = [h for h in headers if not h.lower().startswith(_HOP_HEADERS)]
                 upstream.sendall(f"{method} {path} {version}\r\n".encode("latin-1")
-                                 + b"\r\n".join(keep + [b"Connection: close"]) + b"\r\n\r\n" + body)
-            _pipe(client, upstream)
+                                 + b"\r\n".join(keep + [b"Connection: close"]) + b"\r\n\r\n" + body[:length])
+                # Tell the client this connection ends after the response, so it never reuses it.
+                resp_head, resp_rest = _read_head(upstream)
+                status, *resp_headers = resp_head.split(b"\r\n")
+                resp_keep = [h for h in resp_headers if not h.lower().startswith(_HOP_HEADERS)]
+                client.sendall(b"\r\n".join([status, *resp_keep, b"Connection: close"]) + b"\r\n\r\n" + resp_rest)
+                _pipe(client, upstream, one_request=True)
         except PermissionError:
             client.sendall(f"HTTP/1.1 403 {BLOCKED_MSG}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".encode())
         except (OSError, ValueError):

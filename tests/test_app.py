@@ -221,3 +221,49 @@ def test_job_status_is_a_copy():
 def test_live_streams_and_ffmpeg_network_disabled():
     assert appmod.BASE_OPTS["external_downloader"] == {"default": "native"}
     assert appmod.BASE_OPTS["playlistend"] == 200
+
+
+def test_proxy_never_reuses_plain_http_connection_for_another_host(monkeypatch):
+    import socket
+    import threading
+    from urllib.parse import urlsplit
+
+    # A keep-alive server that ignores "Connection: close" and answers every request with "A".
+    srv = socket.create_server(("127.0.0.1", 0))
+    seen = []
+
+    def serve():
+        conn, _ = srv.accept()
+        with conn:
+            buf = b""
+            while True:
+                data = conn.recv(65536)
+                if not data:
+                    return
+                buf += data
+                while b"\r\n\r\n" in buf:
+                    req, _, buf = buf.partition(b"\r\n\r\n")
+                    seen.append(req.split(b"\r\n")[0])
+                    conn.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 1\r\nConnection: keep-alive\r\n\r\nA")
+
+    threading.Thread(target=serve, daemon=True).start()
+    port = srv.getsockname()[1]
+    monkeypatch.setattr(appmod, "open_public_connection",
+                        lambda host, p: socket.create_connection(("127.0.0.1", port)))
+
+    u = urlsplit(appmod.BASE_OPTS["proxy"])
+    with socket.create_connection((u.hostname, u.port), timeout=5) as s:
+        s.sendall(b"GET http://a.example/ HTTP/1.1\r\nHost: a.example\r\n\r\n")
+        first = b""
+        while not first.endswith(b"A"):
+            first += s.recv(4096)
+        assert b"Connection: close" in first and b"keep-alive" not in first.lower()
+        # A client that reuses the connection anyway must not reach anything.
+        s.sendall(b"GET http://b.example/secret HTTP/1.1\r\nHost: b.example\r\nCookie: x=1\r\n\r\n")
+        try:
+            rest = s.recv(4096)
+        except OSError:
+            rest = b""
+        assert rest == b""
+    srv.close()
+    assert seen == [b"GET / HTTP/1.1"]

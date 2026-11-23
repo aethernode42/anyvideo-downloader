@@ -45,13 +45,19 @@ Open http://127.0.0.1:8000.
 
 ## Deploy it
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/aethernode42/anyvideo-downloader)
+The live demo runs on [Railway](https://railway.com). To deploy your own copy, install the [Railway CLI](https://docs.railway.com/guides/cli) and run:
 
-The button uses [`render.yaml`](render.yaml) to create a free Docker web service.
+```
+railway login
+railway init
+railway up
+railway variables --set CLIENT_IP_HEADER=x-real-ip
+railway domain
+```
 
-**Railway:** with the [Railway CLI](https://docs.railway.com/guides/cli), run `railway login`, `railway init`, `railway up`, then `railway domain` to get a public URL. [`railway.json`](railway.json) tells Railway to build the Dockerfile and use `/healthz` as the health check.
+[`railway.json`](railway.json) tells Railway to build the Dockerfile and use `/healthz` as the health check. `CLIENT_IP_HEADER=x-real-ip` makes the rate limit count each visitor separately, because Railway's edge replaces that header with the real visitor IP.
 
-Any other host that runs a Dockerfile works too (Fly.io, a VPS). Serverless hosts such as Vercel are a poor fit, because downloads run for a long time and produce large files.
+Any other host that runs a Dockerfile works too (Fly.io, a VPS). Check how your host passes the visitor IP before setting `CLIENT_IP_HEADER`. Serverless hosts such as Vercel are a poor fit, because downloads run for a long time and produce large files.
 
 **Note about YouTube on hosted servers:** YouTube often blocks requests from cloud data centers with "Sign in to confirm you're not a bot". Most other sites work fine from a server. For reliable YouTube downloads, run the app on your own computer.
 
