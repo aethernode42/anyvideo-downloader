@@ -142,7 +142,20 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
+def _safe_output() -> None:
+    """Never crash on titles with emoji or other scripts (e.g. a Windows console set to cp1252).
+    When output goes to another program (pipes, Claude), use UTF-8 so file paths stay exact."""
+    for stream in (sys.stdout, sys.stderr):
+        if not hasattr(stream, "reconfigure"):
+            continue
+        if stream.isatty():
+            stream.reconfigure(errors="replace")
+        else:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+
+
 def main(argv: list[str] | None = None) -> None:
+    _safe_output()
     argv = list(sys.argv[1:] if argv is None else argv)
     if argv and argv[0].lower().startswith(("http://", "https://", "www.")):
         argv.insert(0, "get")  # "anyvideo <link>" is a shortcut for "anyvideo get <link>"

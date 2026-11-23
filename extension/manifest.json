@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AnyVideo Downloader",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Download the video on any page (YouTube, TikTok, Instagram, X and 1,800+ sites) with AnyVideo Downloader.",
   "homepage_url": "https://github.com/aethernode42/anyvideo-downloader",
   "icons": {

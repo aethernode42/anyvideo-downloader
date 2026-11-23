@@ -1,6 +1,6 @@
 {
   "name": "anyvideo-downloader",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Download videos or audio from YouTube, TikTok, Instagram, X, Vimeo and 1,800+ sites by asking Claude.",
   "author": { "name": "aethernode42" },
   "homepage": "https://aethernode42.github.io/anyvideo-downloader/",

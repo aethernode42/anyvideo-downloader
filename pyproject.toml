@@ -1,6 +1,6 @@
 [project]
 name = "anyvideo-downloader"
-version = "1.0.0"
+version = "1.0.1"
 description = "Download videos from YouTube, TikTok, Instagram, X and 1,800+ sites. Web app, command line, Claude Code plugin and browser extension."
 readme = "README.md"
 license = "MIT"

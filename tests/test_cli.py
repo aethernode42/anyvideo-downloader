@@ -71,3 +71,16 @@ def test_versions_match():
     assert version == __version__
     assert json.loads((ROOT / "extension/manifest.json").read_text())["version"] == version
     assert json.loads((ROOT / ".claude-plugin/plugin.json").read_text())["version"] == version
+
+
+def test_emoji_titles_do_not_crash_output(monkeypatch):
+    import io
+    import sys
+
+    # A Windows console in cp1252 can't encode emoji; output must not crash.
+    fake = io.TextIOWrapper(io.BytesIO(), encoding="cp1252")
+    monkeypatch.setattr(sys, "stdout", fake)
+    cli._safe_output()
+    print("Saved: C:/videos/guess it 😍❤️.mp4")
+    sys.stdout.flush()
+    assert "guess it" in fake.buffer.getvalue().decode("utf-8")
