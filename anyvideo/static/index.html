@@ -112,6 +112,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:18px}
 
 <script>
 const $ = s => document.querySelector(s);
+const OFFLINE_MSG = "The AnyVideo server stopped or isn't running. Start it again (run `anyvideo` or run.bat), then reload this page.";
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const fmtSize = b => !b ? "—" : b > 1e9 ? (b/1e9).toFixed(2)+" GB" : b > 1e6 ? (b/1e6).toFixed(1)+" MB" : (b/1e3).toFixed(0)+" KB";
 const fmtDur = s => { if(!s) return ""; s=Math.round(s); const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60; return (h?h+":"+String(m).padStart(2,"0"):m)+":"+String(x).padStart(2,"0"); };
@@ -154,6 +155,10 @@ async function fetchInfo(url) {
       startJob({mode: auto}, auto === "best" ? "Best quality" : auto.toUpperCase());
     }
   } catch (err) {
+    if (err instanceof TypeError) {  // fetch() itself failed: the AnyVideo server isn't reachable
+      $("#out").innerHTML = `<div class="err"><b>Can't reach the AnyVideo app.</b><br>${esc(OFFLINE_MSG)}</div>`;
+      return;
+    }
     $("#out").innerHTML = `<div class="err"><b>Couldn't get a video from that link.</b><br>${esc(err.message)}</div>`;
   } finally { go.disabled = false; $("#golabel").textContent = "Fetch"; }
 }
@@ -214,7 +219,7 @@ async function startJob(opts, label) {
     const d = await r.json().catch(() => ({}));
     if (!r.ok || !d.id) throw new Error(d.detail || `Server error (${r.status})`);
     poll(d.id, el);
-  } catch (e) { fail(el, e.message); }
+  } catch (e) { fail(el, e instanceof TypeError ? OFFLINE_MSG : e.message); }
 }
 
 function fail(el, msg) { el.classList.add("error"); el.querySelector(".st").textContent = msg; el.querySelector(".prog").classList.remove("ind"); }
