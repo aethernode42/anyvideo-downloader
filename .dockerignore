@@ -1,0 +1,9 @@
+.venv
+.git
+.github
+.downloads
+.claude
+tests
+cookies.txt
+__pycache__
+*.pyc

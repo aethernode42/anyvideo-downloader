@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Install dependencies
+        run: uv sync --frozen
+      - name: Lint
+        run: uv run ruff check .
+      - name: Tests
+        run: uv run pytest -q
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t anyvideo .
+      - name: Start container and check it responds
+        run: |
+          docker run -d --name anyvideo -p 8000:8000 anyvideo
+          for i in $(seq 1 30); do curl -fs http://127.0.0.1:8000/healthz && break; sleep 2; done
+          curl -fs http://127.0.0.1:8000/healthz
+          curl -fs http://127.0.0.1:8000/ | grep -q "AnyVideo"
+          docker exec anyvideo ffmpeg -hide_banner -version | head -1
+          docker exec anyvideo deno --version | head -1
+      - name: Show logs on failure
+        if: failure()
+        run: docker logs anyvideo
