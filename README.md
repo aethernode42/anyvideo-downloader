@@ -47,7 +47,11 @@ Open http://127.0.0.1:8000.
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/aethernode42/anyvideo-downloader)
 
-The button uses [`render.yaml`](render.yaml) to create a free Docker web service. Any host that runs a Dockerfile works too (Railway, Fly.io, a VPS). Serverless hosts such as Vercel are a poor fit, because downloads run for a long time and produce large files.
+The button uses [`render.yaml`](render.yaml) to create a free Docker web service.
+
+**Railway:** with the [Railway CLI](https://docs.railway.com/guides/cli), run `railway login`, `railway init`, `railway up`, then `railway domain` to get a public URL. [`railway.json`](railway.json) tells Railway to build the Dockerfile and use `/healthz` as the health check.
+
+Any other host that runs a Dockerfile works too (Fly.io, a VPS). Serverless hosts such as Vercel are a poor fit, because downloads run for a long time and produce large files.
 
 **Note about YouTube on hosted servers:** YouTube often blocks requests from cloud data centers with "Sign in to confirm you're not a bot". Most other sites work fine from a server. For reliable YouTube downloads, run the app on your own computer.
 
