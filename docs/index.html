@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AnyVideo Downloader: Free Open-Source Video Downloader for YouTube, TikTok, Instagram &amp; 1,800+ Sites</title>
+<meta name="description" content="Free, open-source video downloader. Save videos and MP3s from YouTube, TikTok, Instagram, X, Facebook, Vimeo and 1,800+ sites. No ads, no sign-up, runs on your own computer. Web app, command line, browser extension and Claude Code plugin.">
+<link rel="canonical" href="https://aethernode42.github.io/anyvideo-downloader/">
+<link rel="icon" type="image/png" href="icon-512.png">
+<meta name="theme-color" content="#0f1115">
+<meta property="og:type" content="website">
+<meta property="og:title" content="AnyVideo Downloader: free, open-source video downloader">
+<meta property="og:description" content="Save videos and MP3s from YouTube, TikTok, Instagram, X and 1,800+ sites. No ads, no sign-up, runs on your own computer.">
+<meta property="og:url" content="https://aethernode42.github.io/anyvideo-downloader/">
+<meta property="og:image" content="https://aethernode42.github.io/anyvideo-downloader/screenshot.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "AnyVideo Downloader",
+  "applicationCategory": "MultimediaApplication",
+  "operatingSystem": "Windows, macOS, Linux",
+  "description": "Free, open-source video downloader for YouTube, TikTok, Instagram, X, Facebook, Vimeo and 1,800+ sites, with MP3 extraction.",
+  "url": "https://aethernode42.github.io/anyvideo-downloader/",
+  "downloadUrl": "https://github.com/aethernode42/anyvideo-downloader",
+  "license": "https://opensource.org/licenses/MIT",
+  "isAccessibleForFree": true,
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "screenshot": "https://aethernode42.github.io/anyvideo-downloader/screenshot.jpg"
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {"@type": "Question", "name": "Is AnyVideo Downloader free?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. It is free and open source under the MIT license, with no ads, no sign-up and no limits. It runs on your own computer, so nobody has to pay for a server."}},
+    {"@type": "Question", "name": "Which sites does it support?", "acceptedAnswer": {"@type": "Answer", "text": "YouTube, TikTok, Instagram, X (Twitter), Facebook, Vimeo, Reddit, Dailymotion, Twitch, SoundCloud and more than 1,800 other sites, plus most pages with an HTML5 video. It is built on yt-dlp."}},
+    {"@type": "Question", "name": "Can I download just the audio as MP3?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Choose MP3 or M4A in the app, use the MP3 button in the browser extension, or run: anyvideo get <link> -a mp3"}},
+    {"@type": "Question", "name": "Is it safe?", "acceptedAnswer": {"@type": "Answer", "text": "The full source code is public on GitHub and tested automatically on every change. It runs locally, so your links and files never pass through a third-party server."}}
+  ]
+}
+</script>
+<style>
+:root{--bg:#0f1115;--panel:#171a21;--panel2:#1e222b;--line:#2a2f3a;--text:#e8eaf0;--muted:#9aa1b0;--accent:#5b8cff;--chip:#252a35}
+@media (prefers-color-scheme: light){:root{--bg:#f4f6fb;--panel:#fff;--panel2:#f0f2f7;--line:#dde1ea;--text:#151821;--muted:#5d6475;--accent:#3d6fff;--chip:#eceff6}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+a{color:var(--accent)}
+.wrap{max-width:980px;margin:0 auto;padding:0 20px}
+header{display:flex;align-items:center;justify-content:space-between;padding:16px 0}
+.logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:18px;color:var(--text);text-decoration:none}
+.logo img{width:30px;height:30px}
+.gh{font-size:14px;font-weight:600;text-decoration:none;border:1px solid var(--line);padding:7px 12px;border-radius:9px;color:var(--text)}
+.hero{text-align:center;padding:44px 0 28px}
+h1{font-size:clamp(30px,5vw,48px);line-height:1.15;margin:0 0 14px;letter-spacing:-.6px}
+.lead{color:var(--muted);font-size:18px;max-width:680px;margin:0 auto 24px}
+.cta{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.btn{display:inline-block;padding:12px 20px;border-radius:11px;font-weight:700;text-decoration:none;border:1px solid var(--line);color:var(--text);background:var(--panel)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.badges{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:22px}
+.badges span{background:var(--chip);color:var(--muted);border-radius:999px;padding:4px 12px;font-size:13px}
+.shot{display:block;width:100%;border-radius:14px;border:1px solid var(--line);margin:30px 0 10px;box-shadow:0 18px 50px rgba(0,0,0,.25)}
+h2{font-size:26px;margin:48px 0 6px;letter-spacing:-.3px}
+.sub{color:var(--muted);margin:0 0 20px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px}
+.card h3{margin:0 0 4px;font-size:17px}
+.card p{margin:0 0 10px;color:var(--muted);font-size:14px}
+pre{margin:0;background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:10px 12px;overflow-x:auto;font-size:13px;line-height:1.5}
+code{font-family:ui-monospace,Consolas,monospace}
+.feat{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+.feat div{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;font-size:14px;color:var(--muted)}
+.feat b{display:block;color:var(--text);font-size:15px;margin-bottom:2px}
+details{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-bottom:10px}
+summary{cursor:pointer;font-weight:600}
+details p{color:var(--muted);margin:8px 0 2px}
+footer{color:var(--muted);font-size:13px;text-align:center;padding:40px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a class="logo" href="./"><img src="icon-512.png" alt="" width="30" height="30">AnyVideo Downloader</a>
+    <a class="gh" href="https://github.com/aethernode42/anyvideo-downloader">★ GitHub</a>
+  </header>
+
+  <section class="hero">
+    <h1>Free video downloader for YouTube, TikTok, Instagram &amp; 1,800+ sites</h1>
+    <p class="lead">Paste a link, pick a quality, get an MP4 or MP3. Open source, no ads, no sign-up, and it runs on your own computer, so it stays free for everyone.</p>
+    <div class="cta">
+      <a class="btn primary" href="#get-it">Get it free</a>
+      <a class="btn" href="https://github.com/aethernode42/anyvideo-downloader">View source on GitHub</a>
+    </div>
+    <div class="badges"><span>YouTube</span><span>TikTok</span><span>Instagram</span><span>X / Twitter</span><span>Facebook</span><span>Vimeo</span><span>Reddit</span><span>Dailymotion</span><span>Twitch</span><span>SoundCloud</span><span>+1,800 more</span></div>
+    <img class="shot" src="screenshot.jpg" alt="AnyVideo Downloader showing download options for a video: best quality, 720p, 480p, MP3 and M4A" width="1280" height="870">
+  </section>
+
+  <h2 id="get-it">Use it however you like</h2>
+  <p class="sub">Every option is free. Most need <a href="https://docs.astral.sh/uv/getting-started/installation/">uv</a> (a one-line install) and <a href="https://ffmpeg.org/download.html">ffmpeg</a>.</p>
+  <div class="grid">
+    <div class="card">
+      <h3>🖥️ Web app on your computer</h3>
+      <p>Opens the downloader in your browser. Nothing to set up beyond uv.</p>
+      <pre><code>uvx --from git+https://github.com/aethernode42/anyvideo-downloader anyvideo</code></pre>
+    </div>
+    <div class="card">
+      <h3>⌨️ Command line</h3>
+      <p>Download straight into a folder, pick a quality or save audio only.</p>
+      <pre><code>uv tool install git+https://github.com/aethernode42/anyvideo-downloader
+anyvideo "https://youtu.be/…"
+anyvideo get "&lt;link&gt;" -q 720
+anyvideo get "&lt;link&gt;" -a mp3</code></pre>
+    </div>
+    <div class="card">
+      <h3>🧩 Browser extension</h3>
+      <p>A “Download this video” button and right-click menu in Chrome, Edge and Firefox. Download the extension zip from the <a href="https://github.com/aethernode42/anyvideo-downloader/releases/latest">latest release</a> and load it, following the <a href="https://github.com/aethernode42/anyvideo-downloader#browser-extension">steps in the README</a>.</p>
+    </div>
+    <div class="card">
+      <h3>🤖 Claude Code plugin</h3>
+      <p>Ask Claude “download this video as MP3” and it does it for you.</p>
+      <pre><code>/plugin marketplace add aethernode42/anyvideo-downloader
+/plugin install anyvideo-downloader@anyvideo</code></pre>
+    </div>
+    <div class="card">
+      <h3>🐳 Docker</h3>
+      <p>Everything included (ffmpeg, Deno). Great for a home server.</p>
+      <pre><code>docker run -p 8000:8000 ghcr.io/aethernode42/anyvideo-downloader</code></pre>
+    </div>
+    <div class="card">
+      <h3>🛠️ From source</h3>
+      <p>Clone it, change it, contribute back.</p>
+      <pre><code>git clone https://github.com/aethernode42/anyvideo-downloader
+cd anyvideo-downloader
+uv run anyvideo</code></pre>
+    </div>
+  </div>
+
+  <h2>Features</h2>
+  <p class="sub">Built on <a href="https://github.com/yt-dlp/yt-dlp">yt-dlp</a>, the most widely used open-source downloader.</p>
+  <div class="feat">
+    <div><b>Any quality</b>Best quality in one click, or pick 4K, 1080p, 720p and more.</div>
+    <div><b>MP3 &amp; M4A</b>Save just the audio from music, podcasts and talks.</div>
+    <div><b>Plays everywhere</b>Video and audio are merged into a standard H.264 MP4.</div>
+    <div><b>Private</b>Runs on your computer. Your links and files stay with you.</div>
+    <div><b>Playlists</b>See every video in a playlist and pick the ones you want.</div>
+    <div><b>Open source</b>MIT licensed, tested automatically on every change.</div>
+  </div>
+
+  <h2>Questions</h2>
+  <details><summary>Is AnyVideo Downloader really free?</summary><p>Yes. It's free and open source under the MIT license: no ads, no sign-up, no limits. It runs on your own computer, so nobody has to pay for a server.</p></details>
+  <details><summary>Which sites does it support?</summary><p>YouTube, TikTok, Instagram, X (Twitter), Facebook, Vimeo, Reddit, Dailymotion, Twitch, SoundCloud and <a href="https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md">more than 1,800 others</a>, plus most pages with an HTML5 video.</p></details>
+  <details><summary>Can I download only the audio as MP3?</summary><p>Yes. Use the MP3 or M4A button in the app or the extension, or run <code>anyvideo get "&lt;link&gt;" -a mp3</code>.</p></details>
+  <details><summary>Why doesn't a video download?</summary><p>Videos protected by DRM (Netflix, Disney+, some Vimeo videos) and live streams can't be downloaded. Some sites need you to be logged in; the README explains how to use your browser's cookies. If a site that used to work stops working, update to get the newest yt-dlp.</p></details>
+  <details><summary>Is it safe?</summary><p>The full source code is public on GitHub and tested automatically on every change. It runs locally, so your links and files never pass through anyone else's server.</p></details>
+
+  <footer>
+    Made by <a href="https://github.com/aethernode42">aethernode42</a> · <a href="https://github.com/aethernode42/anyvideo-downloader">Source code</a> · <a href="https://github.com/aethernode42/anyvideo-downloader/issues">Report a problem</a><br>
+    Only download videos you own or have permission to save.
+  </footer>
+</div>
+</body>
+</html>

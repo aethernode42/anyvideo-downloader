@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "AnyVideo Downloader",
+  "version": "1.0.0",
+  "description": "Download the video on any page (YouTube, TikTok, Instagram, X and 1,800+ sites) with AnyVideo Downloader.",
+  "homepage_url": "https://github.com/aethernode42/anyvideo-downloader",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_title": "Download this video",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js",
+    "scripts": ["common.js", "background.js"]
+  },
+  "permissions": ["activeTab", "contextMenus", "storage"],
+  "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],
+  "optional_host_permissions": ["https://*/*", "http://*/*"],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "anyvideo-downloader@aethernode42.github.io",
+      "strict_min_version": "128.0",
+      "data_collection_permissions": { "required": ["none"] }
+    }
+  }
+}

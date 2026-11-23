@@ -8,7 +8,7 @@ import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-import app as appmod
+from anyvideo import app as appmod
 
 client = TestClient(appmod.app)
 

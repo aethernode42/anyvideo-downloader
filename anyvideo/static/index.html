@@ -147,6 +147,12 @@ async function fetchInfo(url) {
     if (!r.ok) throw new Error(d.detail || "Could not read this link.");
     current = {...d, url: d.resolved_url || url};
     d.type === "playlist" ? renderPlaylist(d) : renderVideo(d);
+    // ?auto=best|mp3|m4a (used by the browser extension) starts the download right away, once.
+    const auto = new URLSearchParams(location.search).get("auto");
+    if (d.type === "video" && ["best", "mp3", "m4a"].includes(auto)) {
+      history.replaceState(null, "", "?url=" + encodeURIComponent(url));
+      startJob({mode: auto}, auto === "best" ? "Best quality" : auto.toUpperCase());
+    }
   } catch (err) {
     $("#out").innerHTML = `<div class="err"><b>Couldn't get a video from that link.</b><br>${esc(err.message)}</div>`;
   } finally { go.disabled = false; $("#golabel").textContent = "Fetch"; }
@@ -241,7 +247,7 @@ async function poll(id, el) {
   }
 }
 
-// deep link: /?url=...
+// deep link: /?url=...  (optionally &auto=best|mp3|m4a)
 const q = new URLSearchParams(location.search).get("url");
 if (q) { $("#url").value = q; fetchInfo(q); }
 </script>

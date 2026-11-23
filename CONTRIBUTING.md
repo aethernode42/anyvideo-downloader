@@ -9,7 +9,7 @@ Thanks for wanting to help! Bug reports, fixes and new ideas are all welcome.
 3. Run the app:
 
    ```
-   uv run python app.py
+   uv run anyvideo
    ```
 
    Then open http://127.0.0.1:8765.
@@ -21,7 +21,9 @@ uv run ruff check .
 uv run pytest
 ```
 
-Both must pass. GitHub Actions runs them, and also builds the Docker image, on every pull request.
+Both must pass. GitHub Actions runs them on every pull request, along with the browser extension linter and a Docker build.
+
+If you change the Claude Code plugin, also run `claude plugin validate .`.
 
 ## Guidelines
 

@@ -13,6 +13,7 @@ import secrets
 import shutil
 import socket
 import socketserver
+import tempfile
 import threading
 import time
 from collections import defaultdict, deque
@@ -37,7 +38,8 @@ def _env_int(name: str, default: int) -> int:
 
 
 # ---------- settings (all optional, via environment variables) ----------
-DL_DIR = Path(os.environ.get("DOWNLOAD_DIR", ROOT / ".downloads"))
+# Temporary home for files while the browser fetches them (deleted after JOB_TTL).
+DL_DIR = Path(os.environ.get("DOWNLOAD_DIR") or Path(tempfile.gettempdir()) / "anyvideo-downloads")
 JOB_TTL = _env_int("JOB_TTL_SECONDS", 3600)              # delete finished files after this
 MAX_CONCURRENT_JOBS = _env_int("MAX_CONCURRENT_JOBS", 3)  # downloads running at once
 MAX_FILESIZE_MB = _env_int("MAX_FILESIZE_MB", 2048)       # per download, 0 = unlimited
@@ -68,9 +70,11 @@ if MAX_FILESIZE_MB > 0:
     BASE_OPTS["max_filesize"] = MAX_FILESIZE_MB * 1024 * 1024
 
 # Login-gated sites (Reddit, private Instagram, age-restricted YouTube...):
-# drop a Netscape cookies.txt next to app.py, or set COOKIES_BROWSER=firefox.
-if (ROOT / "cookies.txt").exists():
-    BASE_OPTS["cookiefile"] = str(ROOT / "cookies.txt")
+# set COOKIES_FILE to a Netscape cookies.txt (or put cookies.txt in the folder you
+# start from), or set COOKIES_BROWSER=firefox.
+_cookies = Path(os.environ.get("COOKIES_FILE") or "cookies.txt")
+if _cookies.is_file():
+    BASE_OPTS["cookiefile"] = str(_cookies.resolve())
 elif os.environ.get("COOKIES_BROWSER"):
     BASE_OPTS["cookiesfrombrowser"] = (os.environ["COOKIES_BROWSER"],)
 
@@ -540,11 +544,15 @@ def job_file(job_id: str) -> FileResponse:
 
 app.mount("/", StaticFiles(directory=ROOT / "static", html=True), name="static")
 
-if __name__ == "__main__":
+def serve(host: str | None = None, port: int | None = None) -> None:
     import uvicorn
 
-    # Hosting platforms (Render, Railway, Fly...) set PORT; then listen on all interfaces.
-    port = _env_int("PORT", 8765)
-    host = os.environ.get("HOST", "0.0.0.0" if "PORT" in os.environ else "127.0.0.1")
+    # Hosting platforms (Railway, Render, Fly...) set PORT; then listen on all interfaces.
+    port = port or _env_int("PORT", 8765)
+    host = host or os.environ.get("HOST", "0.0.0.0" if "PORT" in os.environ else "127.0.0.1")
     # proxy_headers off: a client-supplied X-Forwarded-For must not change the IP used for rate limiting.
     uvicorn.run(app, host=host, port=port, proxy_headers=False)
+
+
+if __name__ == "__main__":
+    serve()

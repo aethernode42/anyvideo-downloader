@@ -1,4 +1,4 @@
 @echo off
+rem Start AnyVideo Downloader from a cloned copy of this repo. Needs uv and ffmpeg.
 cd /d "%~dp0"
-start "" http://127.0.0.1:8765
-uv run python app.py
+uv run anyvideo serve

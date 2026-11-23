@@ -1,0 +1,10 @@
+{
+  "name": "anyvideo-downloader",
+  "version": "1.0.0",
+  "description": "Download videos or audio from YouTube, TikTok, Instagram, X, Vimeo and 1,800+ sites by asking Claude.",
+  "author": { "name": "aethernode42" },
+  "homepage": "https://aethernode42.github.io/anyvideo-downloader/",
+  "repository": "https://github.com/aethernode42/anyvideo-downloader",
+  "license": "MIT",
+  "keywords": ["video", "download", "youtube", "tiktok", "mp3", "yt-dlp"]
+}

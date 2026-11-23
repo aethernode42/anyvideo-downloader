@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>AnyVideo Downloader</title>
+<style>
+  :root { --bg:#0f1115; --panel:#171a21; --line:#2a2f3a; --text:#e8eaf0; --muted:#9097a6; --accent:#5b8cff; --ok:#34c38f; --warn:#f0b429; }
+  @media (prefers-color-scheme: light) {
+    :root { --bg:#f4f6fb; --panel:#fff; --line:#dde1ea; --text:#151821; --muted:#5d6475; --accent:#3d6fff; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; width:320px; background:var(--bg); color:var(--text); font:14px/1.45 system-ui, "Segoe UI", sans-serif; }
+  header { display:flex; align-items:center; gap:8px; padding:12px 14px; border-bottom:1px solid var(--line); font-weight:700; }
+  header img { width:22px; height:22px; }
+  main { padding:12px 14px; }
+  .page { color:var(--muted); font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:10px; }
+  button { width:100%; border:1px solid var(--line); background:var(--panel); color:var(--text); border-radius:9px; padding:9px 12px; font-weight:600; cursor:pointer; margin-bottom:8px; font-size:14px; }
+  button:hover { border-color:var(--accent); }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  .row { display:flex; gap:8px; } .row button { flex:1; }
+  .status { font-size:12px; color:var(--muted); margin:4px 0 10px; }
+  .status b.ok { color:var(--ok); } .status b.warn { color:var(--warn); }
+  code { background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:6px 8px; display:block; font-size:11px; word-break:break-all; margin:6px 0; user-select:all; }
+  details { border-top:1px solid var(--line); margin-top:6px; padding-top:8px; font-size:12px; color:var(--muted); }
+  summary { cursor:pointer; }
+  input { width:100%; padding:7px 9px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--text); margin:6px 0; }
+  a { color:var(--accent); }
+</style>
+</head>
+<body>
+<header><img src="icons/icon48.png" alt="">AnyVideo Downloader</header>
+<main>
+  <div class="page" id="page">…</div>
+  <button class="primary" id="best">⬇ Download best quality (MP4)</button>
+  <div class="row">
+    <button id="mp3">♪ MP3</button>
+    <button id="choose">Choose quality…</button>
+  </div>
+  <div class="status" id="status">Checking the AnyVideo app…</div>
+  <div id="help" hidden>
+    Start AnyVideo on this computer first (free, needs <a href="https://docs.astral.sh/uv/getting-started/installation/" target="_blank">uv</a>):
+    <code>uvx --from git+https://github.com/aethernode42/anyvideo-downloader anyvideo</code>
+  </div>
+  <details>
+    <summary>Settings</summary>
+    AnyVideo address (your own computer by default, or any AnyVideo server):
+    <input id="server" type="url" spellcheck="false">
+    <button id="save">Save</button>
+    <a href="https://github.com/aethernode42/anyvideo-downloader" target="_blank">About AnyVideo</a>
+  </details>
+</main>
+<script src="common.js"></script>
+<script src="popup.js"></script>
+</body>
+</html>

@@ -1,13 +1,40 @@
 [project]
-name = "anyvideo"
-version = "0.1.0"
-description = "Paste a link, download the video. FastAPI + yt-dlp."
+name = "anyvideo-downloader"
+version = "1.0.0"
+description = "Download videos from YouTube, TikTok, Instagram, X and 1,800+ sites. Web app, command line, Claude Code plugin and browser extension."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "aethernode42" }]
 requires-python = ">=3.12"
+keywords = ["video downloader", "youtube downloader", "tiktok downloader", "yt-dlp", "mp3", "fastapi"]
+classifiers = [
+    "Environment :: Web Environment",
+    "Environment :: Console",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Multimedia :: Video",
+]
 dependencies = [
     "fastapi>=0.165.0",
     "uvicorn[standard]>=0.54.0",
     "yt-dlp[curl-cffi,default]>=2026.10.26",
 ]
+
+[project.scripts]
+anyvideo = "anyvideo.cli:main"
+
+[project.urls]
+Homepage = "https://aethernode42.github.io/anyvideo-downloader/"
+Source = "https://github.com/aethernode42/anyvideo-downloader"
+Issues = "https://github.com/aethernode42/anyvideo-downloader/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["anyvideo"]
 
 [dependency-groups]
 dev = [

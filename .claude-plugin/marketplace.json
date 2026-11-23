@@ -1,0 +1,21 @@
+{
+  "name": "anyvideo",
+  "description": "AnyVideo Downloader: download videos or audio from 1,800+ sites by asking Claude.",
+  "owner": {
+    "name": "aethernode42"
+  },
+  "plugins": [
+    {
+      "name": "anyvideo-downloader",
+      "source": "./",
+      "description": "Download videos or audio from YouTube, TikTok, Instagram, X, Vimeo and 1,800+ sites by asking Claude.",
+      "category": "media",
+      "tags": [
+        "video",
+        "download",
+        "youtube",
+        "mp3"
+      ]
+    }
+  ]
+}
